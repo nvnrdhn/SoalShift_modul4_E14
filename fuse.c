@@ -37,14 +37,100 @@
 #include <grp.h>
 #include<syslog.h>
 
-char fix[] = "/home/somi/shift4";
+static const char *fix = "/home/somi/shift4";
+static const char *in = "qE1~ YMUR2\"`hNIdPzi%^t@(Ao:=CQ,nx4S[7mHFye#aT6+v)DfKL$r?bkOGB>}!9_wV']jcp5JZ&Xl|\\8s;g<{3.u*W-0";
+static const int key = 17;
+pthread_t t;
+void* join(void *arg){
+   pthread_t id = pthread_self();
+   if(pthread_equal(id,t)){
+      DIR *d;
+      struct dirent *de;
+      d = opendir(dirpath);
+      char dname[1000];
+      strcpy(dname, dirpath);
+      mkdir(strcat(dname,"/Videos"),0777);
+      while((de=readdir(d))!=NULL){
+         char fname[1000],ch;
+         if(strcmp(strrchr(de->d_name,'.'),".001")==0){
+            strncpy(fname,de->d_name,strlen(de->d_name)-4);
+         }
+         else if(strcmp(strstr(de->d_name,fname),fname)==0){
+            FILE *fr, *fw;
+            fw = fopen(fname,"w");
+            fr = fopen(de->d_name, "r");
+            while((ch = fgetc(fr))!=EOF) fputc(ch,fw);
+            fclose(fr);
+            fclose(fw);
+            rename(fname,strcat("/Videos/",fname));
+         }
+      }
+     closedir(d);
+   }
+   sleep(10);
+   return NULL;
+}
+void enkrip(char *hasil, const char *string)
+{
+	if (strcmp(string,".") != 0 && strcmp(string,"..") != 0) {
+	int i,len;
+      i=0;
+      char to[256]="";
+      len=strlen(string);
+      while(i<len){
+       int j=0;
+       for(j=0;j<strlen(in);j++){
+         if(string[i]=='/'){
+           to[i]='/';
+           break;
+         }
+         else if(string[i]==in[j]){
+           j=j+key;
+           if(j>=strlen(in)) j=j-strlen(in);
+           to[i]=in[j];
+           break;
+         }
+       }
+       i++;
+     }
+     sprintf(hasil,"%s",to);
+ }
+}
+
+void dekrip(char *hasil, char *string)
+{
+	if (strcmp(string,".") != 0 && strcmp(string,"..") != 0) {
+	int i,len;
+      i=0;
+      char to[256]="";
+      len=strlen(string);
+      while(i<len){
+       int j=0;
+       for(j=0;j<strlen(in);j++){
+         if(string[i]=='/'){
+           to[i]='/';
+           break;
+         }
+         else if(string[i]==in[j]){
+           j=j-key;
+           if(j<0) j=j+strlen(in);
+           to[i]=in[j];
+           break;
+         }
+       }
+       i++;
+     }
+     sprintf(hasil,"%s",to);
+ }
+}
 
 static int xmp_getattr(const char *path, struct stat *stbuf)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = lstat(fdir, stbuf);
 	if (res == -1)
@@ -57,8 +143,9 @@ static int xmp_access(const char *path, int mask)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = access(fdir, mask);
 	if (res == -1)
@@ -70,8 +157,12 @@ static int xmp_access(const char *path, int mask)
 static int xmp_readlink(const char *path, char *buf, size_t size)
 {
 	int res;
+	char fdir[300];
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
-	res = readlink(path, buf, size - 1);
+	res = readlink(fdir, buf, size - 1);
 	if (res == -1)
 		return -errno;
 
@@ -89,9 +180,9 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	(void) offset;
 	(void) fi;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
-
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 	dp = opendir(fdir);
 	if (dp == NULL)
 		return -errno;
@@ -109,13 +200,17 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		pwd = getpwuid(st.st_uid);
 		// openlog("fuse", LOG_PID, LOG_USER);
 		// syslog(LOG_INFO, "%s", temp);
-		// closelog();
+		// closelog();=
+		char enc[256];
+		sprintf(enc, "%s", de->d_name);
+		dekrip(de->d_name, enc);
 		if (strcmp(grp->gr_name, "rusak") == 0 && (strcmp(pwd->pw_name, "chipset") == 0 || strcmp(pwd->pw_name, "ic_controller") == 0) && !(st.st_mode & S_IRUSR)) {
 			char fm[300];
-			memset(fm, 0, sizeof(fm));
-			sprintf(fm, "%s/filemiris.txt", fix);
+			char fmenc[100];
+			enkrip(fmenc, "filemiris.txt");
+			sprintf(fm, "%s/%s", fix, fmenc);
 			FILE *miris = fopen(fm, "a");
-			fprintf(miris, "%s GID: %d UID: %d Last Access: %s",de->d_name, st.st_gid, st.st_uid, ctime(&st.st_atime));
+			fprintf(miris, "%s GID: %d UID: %d Last Access: %s", de->d_name, st.st_gid, st.st_uid, ctime(&st.st_atime));
 			remove(temp);
 			fclose(miris);
 			continue;
@@ -132,9 +227,9 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
-
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 	/* On Linux this could just be 'mknod(path, mode, rdev)' but this
 	   is more portable */
 	if (S_ISREG(mode)) {
@@ -155,8 +250,9 @@ static int xmp_mkdir(const char *path, mode_t mode)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = mkdir(fdir, mode);
 	if (res == -1)
@@ -169,8 +265,9 @@ static int xmp_unlink(const char *path)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = unlink(fdir);
 	if (res == -1)
@@ -183,8 +280,9 @@ static int xmp_rmdir(const char *path)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = rmdir(fdir);
 	if (res == -1)
@@ -230,8 +328,9 @@ static int xmp_chmod(const char *path, mode_t mode)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = chmod(fdir, mode);
 	if (res == -1)
@@ -244,8 +343,9 @@ static int xmp_chown(const char *path, uid_t uid, gid_t gid)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = lchown(fdir, uid, gid);
 	if (res == -1)
@@ -258,8 +358,9 @@ static int xmp_truncate(const char *path, off_t size)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = truncate(fdir, size);
 	if (res == -1)
@@ -273,8 +374,9 @@ static int xmp_utimens(const char *path, const struct timespec ts[2])
 	int res;
 	struct timeval tv[2];
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	tv[0].tv_sec = ts[0].tv_sec;
 	tv[0].tv_usec = ts[0].tv_nsec / 1000;
@@ -292,8 +394,9 @@ static int xmp_open(const char *path, struct fuse_file_info *fi)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = open(fdir, fi->flags);
 	if (res == -1)
@@ -309,8 +412,9 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
 	int fd;
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	(void) fi;
 	fd = open(fdir, O_RDONLY);
@@ -331,8 +435,9 @@ static int xmp_write(const char *path, const char *buf, size_t size,
 	int fd;
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	(void) fi;
 	fd = open(fdir, O_WRONLY);
@@ -351,8 +456,9 @@ static int xmp_statfs(const char *path, struct statvfs *stbuf)
 {
 	int res;
 	char fdir[300];
-	memset(fdir, 0, sizeof(fdir));
-	sprintf(fdir, "%s%s", fix, path);
+	char enc[100];
+	enkrip(enc, path);
+	sprintf(fdir, "%s%s", fix, enc);
 
 	res = statvfs(fdir, stbuf);
 	if (res == -1)
@@ -417,6 +523,8 @@ static struct fuse_operations xmp_oper = {
 
 int main(int argc, char *argv[])
 {
+	pthread_create(&(t),NULL,&join,NULL);
+	pthread_join(t,NULL);
 	umask(0);
 	return fuse_main(argc, argv, &xmp_oper, NULL);
 }

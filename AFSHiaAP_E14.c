@@ -95,6 +95,44 @@ void dekrip(char *hasil, char *string)
  }
 }
 
+void* ekstension(void *arg)
+{
+	char temp[1005];
+	char temp2[1005];
+	char check[1005];
+	char *path = (char *)arg;
+	strcpy(temp2, path);
+	dekrip(temp, temp2);
+
+	if (strstr(temp, "/YOUTUBER") != NULL)
+	{
+		char *ret;
+		int subdir=0;
+		ret = strstr(temp, "YOUTUBER/");
+		strcpy(check,ret);
+		for(int i=0; check[i]!='\0'; i++)
+		{
+			if(check[i]=='/') subdir++; 
+		}
+		if(subdir==1)
+		{
+			char oldname[1100];
+			char newname[1100];
+			enkrip(temp2, temp);
+			sprintf(oldname, "%s",temp2);
+			//printf("ini oldname: %s\n", oldname);
+			strcpy(newname,oldname);
+			char ext[] = ".iz1";
+			char temp3[100] = "";
+			enkrip(temp3, ext);
+			strcpy(newname+strlen(newname), temp3);
+			//printf("ini newname: %s\n", newname);
+			rename(oldname, newname);
+		}
+	}
+	return NULL;
+}
+
 static int xmp_getattr(const char *path, struct stat *stbuf)
 {
 	int res;
@@ -226,6 +264,9 @@ static int xmp_mkdir(const char *path, mode_t mode)
 	int res;
 	char fdir[300];
 	char enc[100];
+	if (strstr(path, "/YOUTUBER") != NULL) {
+		mode = 0750;
+	}
 	enkrip(enc, path);
 	sprintf(fdir, "%s%s", fix, enc);
 
@@ -304,6 +345,11 @@ static int xmp_chmod(const char *path, mode_t mode)
 	int res;
 	char fdir[300];
 	char enc[100];
+	int len = strlen(path);
+	if (strstr(path, "/YOUTUBER/") != NULL && path[len - 1] == '1' && path[len - 2] == 'z' && path[len - 3] == 'i' && path[len - 4] == '.') {
+    	printf("File ekstensi iz1 tidak boleh diubah permissionnya.\n");
+    	return -1;
+	}
 	enkrip(enc, path);
 	sprintf(fdir, "%s%s", fix, enc);
 
